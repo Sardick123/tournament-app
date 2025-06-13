@@ -1,31 +1,45 @@
 import os
 import threading
-from flask import Flask, render_template, jsonify  # <-- Add jsonify
+# request is needed to handle form data, jsonify to send back responses
+from flask import Flask, render_template, jsonify, request
+from tinydb import TinyDB # Import TinyDB
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, ContextTypes
 
-# --- 1. FLASK WEB APP SETUP ---
+# --- 1. DATABASE AND FLASK SETUP ---
 app = Flask(__name__)
+db = TinyDB('db.json') # This creates our database file
+tournaments_table = db.table('tournaments') # This creates a 'table' for tournaments
+
+# --- 2. FLASK WEB APP ROUTES ---
 
 # This is the main page for the Mini App
 @app.route('/')
 def index():
     return render_template('index.html')
 
-# === NEW: API ENDPOINT TO GET TOURNAMENTS ===
+# This API endpoint now gets tournaments FROM THE DATABASE
 @app.route('/api/tournaments')
 def get_tournaments():
-    # For now, we'll use a hardcoded list of tournaments.
-    # Later, this data can come from a database.
-    tournaments = [
-        {"id": 1, "name": "Friday Night Efootball", "slots": "8/16", "status": "Open"},
-        {"id": 2, "name": "Weekend Champions League", "slots": "15/16", "status": "Open"},
-        {"id": 3, "name": "Monthly Pro Cup", "slots": "32/32", "status": "Full"}
-    ]
-    return jsonify(tournaments)
+    all_tournaments = tournaments_table.all()
+    # TinyDB assigns an ID automatically, we'll pass it to the frontend
+    for tournament in all_tournaments:
+        tournament['id'] = tournament.doc_id 
+    return jsonify(all_tournaments)
+
+# === NEW: API ENDPOINT TO CREATE A TOURNAMENT ===
+@app.route('/api/tournaments/create', methods=['POST'])
+def create_tournament():
+    # Get the name from the form submitted by the frontend
+    tournament_name = request.form['name']
+    if tournament_name:
+        # Insert the new tournament into our database table
+        tournaments_table.insert({'name': tournament_name, 'status': 'New'})
+        return jsonify({'status': 'success', 'message': 'Tournament created!'})
+    return jsonify({'status': 'error', 'message': 'Name is required.'}), 400
 # ============================================
 
-# --- 2. TELEGRAM BOT LOGIC ---
+# --- 3. TELEGRAM BOT LOGIC (No changes here) ---
 def get_webapp_url():
     return os.environ.get("WEBAPP_URL", "https://your-app-name.onrender.com")
 
@@ -51,7 +65,7 @@ def run_bot():
     application.run_polling()
     print("Bot has stopped.")
 
-# --- 3. START THE BOT IN A BACKGROUND THREAD ---
+# --- 4. START THE BOT IN A BACKGROUND THREAD (No changes here) ---
 print("Starting bot thread...")
 bot_thread = threading.Thread(target=run_bot)
 bot_thread.daemon = True
