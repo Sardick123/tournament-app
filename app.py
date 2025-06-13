@@ -1,6 +1,6 @@
 import os
 import threading
-import itertools # We'll use this to generate pairs of teams
+import itertools
 from flask import Flask, render_template, jsonify, request, abort
 from tinydb import TinyDB, Query
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
@@ -51,7 +51,6 @@ def get_fixtures(tournament_id):
 def create_tournament():
     tournament_name = request.form['name']
     if tournament_name:
-        # When creating, add empty lists for teams and fixtures
         new_tournament = {'name': tournament_name, 'status': 'New', 'teams': [], 'fixtures': []}
         tournaments_table.insert(new_tournament)
         return jsonify({'status': 'success', 'message': 'Tournament created!'})
@@ -59,6 +58,7 @@ def create_tournament():
 
 @app.route('/api/tournaments/<int:tournament_id>/add_team', methods=['POST'])
 def add_team(tournament_id):
+    # ... (this function is unchanged)
     tournament = tournaments_table.get(doc_id=tournament_id)
     team_name = request.form['name']
     if tournament and team_name:
@@ -68,34 +68,45 @@ def add_team(tournament_id):
         return jsonify({'status': 'success', 'message': 'Team added!'})
     return jsonify({'status': 'error', 'message': 'Invalid request'}), 400
 
-# === NEW: API ENDPOINT TO GENERATE FIXTURES ===
 @app.route('/api/tournaments/<int:tournament_id>/generate_fixtures', methods=['POST'])
 def generate_fixtures(tournament_id):
+    # ... (this function is unchanged)
     tournament = tournaments_table.get(doc_id=tournament_id)
     if not tournament or len(tournament.get('teams', [])) < 2:
         return jsonify({'status': 'error', 'message': 'Add at least 2 teams to generate fixtures.'}), 400
-
-    # Prevent generating fixtures more than once
     if len(tournament.get('fixtures', [])) > 0:
         return jsonify({'status': 'error', 'message': 'Fixtures have already been generated.'}), 400
-
     team_names = [team['name'] for team in tournament.get('teams', [])]
-
-    # Simple round-robin logic: generate all unique pairs of teams
     all_matchups = list(itertools.combinations(team_names, 2))
-
     fixtures = []
     for match in all_matchups:
-        fixtures.append({
-            'home_team': match[0],
-            'away_team': match[1],
-            'home_score': None,
-            'away_score': None
-        })
-
+        fixtures.append({'home_team': match[0], 'away_team': match[1], 'home_score': None, 'away_score': None})
     tournaments_table.update({'fixtures': fixtures, 'status': 'In Progress'}, doc_ids=[tournament_id])
     return jsonify({'status': 'success', 'message': f'{len(fixtures)} fixtures generated successfully!'})
-# ===============================================
+
+# === NEW: API ENDPOINT TO UPDATE A FIXTURE'S SCORE ===
+@app.route('/api/tournaments/<int:tournament_id>/update_fixture/<int:fixture_index>', methods=['POST'])
+def update_fixture(tournament_id, fixture_index):
+    tournament = tournaments_table.get(doc_id=tournament_id)
+
+    home_score_str = request.form.get('home_score')
+    away_score_str = request.form.get('away_score')
+
+    # Ensure that if the input is an empty string, we store it as None (not played)
+    home_score = int(home_score_str) if home_score_str else None
+    away_score = int(away_score_str) if away_score_str else None
+
+    if tournament and fixture_index < len(tournament['fixtures']):
+        # Update the specific fixture in the list
+        tournament['fixtures'][fixture_index]['home_score'] = home_score
+        tournament['fixtures'][fixture_index]['away_score'] = away_score
+
+        # Save the entire updated tournament document back to the database
+        tournaments_table.update(tournament, doc_ids=[tournament_id])
+        return jsonify({'status': 'success', 'message': 'Score updated!'})
+
+    return jsonify({'status': 'error', 'message': 'Invalid request'}), 400
+# =======================================================
 
 # --- 4. & 5. TELEGRAM BOT & THREADING (No changes here) ---
 def get_webapp_url():
