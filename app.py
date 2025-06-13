@@ -1,45 +1,113 @@
 import os
 import threading
-# request is needed to handle form data, jsonify to send back responses
-from flask import Flask, render_template, jsonify, request
-from tinydb import TinyDB # Import TinyDB
+import itertools
+from flask import Flask, render_template, jsonify, request, abort
+from tinydb import TinyDB, Query
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, ContextTypes
 
 # --- 1. DATABASE AND FLASK SETUP ---
 app = Flask(__name__)
-db = TinyDB('db.json') # This creates our database file
-tournaments_table = db.table('tournaments') # This creates a 'table' for tournaments
+db = TinyDB('db.json')
+tournaments_table = db.table('tournaments')
 
 # --- 2. FLASK WEB APP ROUTES ---
-
-# This is the main page for the Mini App
 @app.route('/')
 def index():
     return render_template('index.html')
 
-# This API endpoint now gets tournaments FROM THE DATABASE
+@app.route('/tournament/<int:tournament_id>')
+def tournament_detail(tournament_id):
+    tournament = tournaments_table.get(doc_id=tournament_id)
+    if tournament:
+        tournament['id'] = tournament.doc_id
+        return render_template('tournament_detail.html', tournament=tournament)
+    else:
+        return abort(404)
+
+# --- 3. API ENDPOINTS ---
+
+# This section has all your existing API endpoints...
 @app.route('/api/tournaments')
 def get_tournaments():
     all_tournaments = tournaments_table.all()
-    # TinyDB assigns an ID automatically, we'll pass it to the frontend
-    for tournament in all_tournaments:
-        tournament['id'] = tournament.doc_id 
+    for t in all_tournaments:
+        t['id'] = t.doc_id
     return jsonify(all_tournaments)
 
-# === NEW: API ENDPOINT TO CREATE A TOURNAMENT ===
+@app.route('/api/tournaments/<int:tournament_id>/teams')
+def get_teams(tournament_id):
+    tournament = tournaments_table.get(doc_id=tournament_id)
+    if tournament:
+        return jsonify(tournament.get('teams', []))
+    return jsonify({'status': 'error', 'message': 'Tournament not found'}), 404
+
+@app.route('/api/tournaments/<int:tournament_id>/fixtures')
+def get_fixtures(tournament_id):
+    tournament = tournaments_table.get(doc_id=tournament_id)
+    if tournament:
+        return jsonify(tournament.get('fixtures', []))
+    return jsonify({'status': 'error', 'message': 'Tournament not found'}), 404
+
 @app.route('/api/tournaments/create', methods=['POST'])
 def create_tournament():
-    # Get the name from the form submitted by the frontend
     tournament_name = request.form['name']
     if tournament_name:
-        # Insert the new tournament into our database table
-        tournaments_table.insert({'name': tournament_name, 'status': 'New'})
+        new_tournament = {'name': tournament_name, 'status': 'New', 'teams': [], 'fixtures': []}
+        tournaments_table.insert(new_tournament)
         return jsonify({'status': 'success', 'message': 'Tournament created!'})
     return jsonify({'status': 'error', 'message': 'Name is required.'}), 400
-# ============================================
 
-# --- 3. TELEGRAM BOT LOGIC (No changes here) ---
+@app.route('/api/tournaments/<int:tournament_id>/add_team', methods=['POST'])
+def add_team(tournament_id):
+    tournament = tournaments_table.get(doc_id=tournament_id)
+    team_name = request.form['name']
+    if tournament and team_name:
+        current_teams = tournament.get('teams', [])
+        current_teams.append({'name': team_name})
+        tournaments_table.update({'teams': current_teams}, doc_ids=[tournament_id])
+        return jsonify({'status': 'success', 'message': 'Team added!'})
+    return jsonify({'status': 'error', 'message': 'Invalid request'}), 400
+
+@app.route('/api/tournaments/<int:tournament_id>/generate_fixtures', methods=['POST'])
+def generate_fixtures(tournament_id):
+    tournament = tournaments_table.get(doc_id=tournament_id)
+    if not tournament or len(tournament.get('teams', [])) < 2:
+        return jsonify({'status': 'error', 'message': 'Not enough teams to generate fixtures.'}), 400
+    team_names = [team['name'] for team in tournament.get('teams', [])]
+    all_matchups = list(itertools.combinations(team_names, 2))
+    fixtures = []
+    for match in all_matchups:
+        fixtures.append({'home_team': match[0], 'away_team': match[1], 'home_score': None, 'away_score': None})
+    tournaments_table.update({'fixtures': fixtures, 'status': 'In Progress'}, doc_ids=[tournament_id])
+    return jsonify({'status': 'success', 'message': f'{len(fixtures)} fixtures generated!'})
+
+# === NEW: API ENDPOINT TO UPDATE A FIXTURE'S SCORE ===
+@app.route('/api/tournaments/<int:tournament_id>/update_fixture/<int:fixture_index>', methods=['POST'])
+def update_fixture(tournament_id, fixture_index):
+    tournament = tournaments_table.get(doc_id=tournament_id)
+
+    # Get scores from the form, convert them to integers or keep as None
+    home_score = request.form.get('home_score')
+    away_score = request.form.get('away_score')
+
+    home_score = int(home_score) if home_score else None
+    away_score = int(away_score) if away_score else None
+
+    if tournament and fixture_index < len(tournament['fixtures']):
+        # Update the specific fixture in the list
+        tournament['fixtures'][fixture_index]['home_score'] = home_score
+        tournament['fixtures'][fixture_index]['away_score'] = away_score
+
+        # Save the entire updated tournament document back to the database
+        tournaments_table.update(tournament, doc_ids=[tournament_id])
+        return jsonify({'status': 'success', 'message': 'Score updated!'})
+
+    return jsonify({'status': 'error', 'message': 'Invalid request'}), 400
+# =======================================================
+
+# --- 4. & 5. TELEGRAM BOT & THREADING (No changes here) ---
+# ... (rest of the bot code is identical) ...
 def get_webapp_url():
     return os.environ.get("WEBAPP_URL", "https://your-app-name.onrender.com")
 
@@ -48,24 +116,19 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         [InlineKeyboardButton("🏆 Open Tournament App 🏆", web_app={'url': get_webapp_url()})]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
-    await update.message.reply_text(
-        "Welcome! Click the button below to open the tournament app.",
-        reply_markup=reply_markup
-    )
+    await update.message.reply_text("Welcome!", reply_markup=reply_markup)
 
 def run_bot():
     TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
     if not TELEGRAM_BOT_TOKEN:
         print("ERROR: TELEGRAM_BOT_TOKEN environment variable not set!")
         return
-
     application = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
     application.add_handler(CommandHandler("start", start))
-    print("Bot is starting to poll for updates...")
+    print("Bot is starting to poll...")
     application.run_polling()
     print("Bot has stopped.")
 
-# --- 4. START THE BOT IN A BACKGROUND THREAD (No changes here) ---
 print("Starting bot thread...")
 bot_thread = threading.Thread(target=run_bot)
 bot_thread.daemon = True
