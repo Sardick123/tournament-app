@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tournament App</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            margin: 0;
+            padding: 15px;
+            color: var(--tg-theme-text-color, #222);
+            background-color: var(--tg-theme-bg-color, #fff);
+        }
+        .tournament-card {
+            background-color: var(--tg-theme-secondary-bg-color, #eee);
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+        }
+        .tournament-card h3 {
+            margin-top: 0;
+        }
+        #loading {
+            text-align: center;
+            padding: 20px;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Efootball Tournaments</h1>
+    <hr>
+
+    <div id="tournaments-list">
+        <div id="loading">Loading tournaments...</div>
+    </div>
+
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+
+    <script>
+        // === NEW JAVASCRIPT TO LOAD DATA ===
+        document.addEventListener('DOMContentLoaded', function() {
+            // Initialize the Telegram Web App
+            const tg = window.Telegram.WebApp;
+            tg.ready();
+
+            const tournamentsListDiv = document.getElementById('tournaments-list');
+            const loadingDiv = document.getElementById('loading');
+
+            // Fetch data from our backend API
+            fetch('/api/tournaments')
+                .then(response => response.json())
+                .then(tournaments => {
+                    // Clear the "Loading..." message
+                    loadingDiv.style.display = 'none'; 
+
+                    // Loop through the tournaments and display them
+                    tournaments.forEach(tournament => {
+                        const card = document.createElement('div');
+                        card.className = 'tournament-card';
+                        card.innerHTML = `
+                            <h3>${tournament.name}</h3>
+                            <p><strong>Slots:</strong> ${tournament.slots}</p>
+                            <p><strong>Status:</strong> ${tournament.status}</p>
+                        `;
+                        tournamentsListDiv.appendChild(card);
+                    });
+                })
+                .catch(error => {
+                    console.error('Error fetching tournaments:', error);
+                    loadingDiv.innerText = 'Failed to load tournaments.';
+                });
+        });
+        // ===================================
+    </script>
+</body>
+</html>
