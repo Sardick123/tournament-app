@@ -1,6 +1,5 @@
 import os
 import threading
-import itertools
 from flask import Flask, render_template, jsonify, request, abort
 from tinydb import TinyDB, Query
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
@@ -26,8 +25,6 @@ def tournament_detail(tournament_id):
         return abort(404)
 
 # --- 3. API ENDPOINTS ---
-
-# This section has all your existing API endpoints...
 @app.route('/api/tournaments')
 def get_tournaments():
     all_tournaments = tournaments_table.all()
@@ -42,18 +39,11 @@ def get_teams(tournament_id):
         return jsonify(tournament.get('teams', []))
     return jsonify({'status': 'error', 'message': 'Tournament not found'}), 404
 
-@app.route('/api/tournaments/<int:tournament_id>/fixtures')
-def get_fixtures(tournament_id):
-    tournament = tournaments_table.get(doc_id=tournament_id)
-    if tournament:
-        return jsonify(tournament.get('fixtures', []))
-    return jsonify({'status': 'error', 'message': 'Tournament not found'}), 404
-
 @app.route('/api/tournaments/create', methods=['POST'])
 def create_tournament():
     tournament_name = request.form['name']
     if tournament_name:
-        new_tournament = {'name': tournament_name, 'status': 'New', 'teams': [], 'fixtures': []}
+        new_tournament = {'name': tournament_name, 'status': 'New', 'teams': []}
         tournaments_table.insert(new_tournament)
         return jsonify({'status': 'success', 'message': 'Tournament created!'})
     return jsonify({'status': 'error', 'message': 'Name is required.'}), 400
@@ -69,47 +59,9 @@ def add_team(tournament_id):
         return jsonify({'status': 'success', 'message': 'Team added!'})
     return jsonify({'status': 'error', 'message': 'Invalid request'}), 400
 
-@app.route('/api/tournaments/<int:tournament_id>/generate_fixtures', methods=['POST'])
-def generate_fixtures(tournament_id):
-    tournament = tournaments_table.get(doc_id=tournament_id)
-    if not tournament or len(tournament.get('teams', [])) < 2:
-        return jsonify({'status': 'error', 'message': 'Not enough teams to generate fixtures.'}), 400
-    team_names = [team['name'] for team in tournament.get('teams', [])]
-    all_matchups = list(itertools.combinations(team_names, 2))
-    fixtures = []
-    for match in all_matchups:
-        fixtures.append({'home_team': match[0], 'away_team': match[1], 'home_score': None, 'away_score': None})
-    tournaments_table.update({'fixtures': fixtures, 'status': 'In Progress'}, doc_ids=[tournament_id])
-    return jsonify({'status': 'success', 'message': f'{len(fixtures)} fixtures generated!'})
-
-# === NEW: API ENDPOINT TO UPDATE A FIXTURE'S SCORE ===
-@app.route('/api/tournaments/<int:tournament_id>/update_fixture/<int:fixture_index>', methods=['POST'])
-def update_fixture(tournament_id, fixture_index):
-    tournament = tournaments_table.get(doc_id=tournament_id)
-
-    # Get scores from the form, convert them to integers or keep as None
-    home_score = request.form.get('home_score')
-    away_score = request.form.get('away_score')
-
-    home_score = int(home_score) if home_score else None
-    away_score = int(away_score) if away_score else None
-
-    if tournament and fixture_index < len(tournament['fixtures']):
-        # Update the specific fixture in the list
-        tournament['fixtures'][fixture_index]['home_score'] = home_score
-        tournament['fixtures'][fixture_index]['away_score'] = away_score
-
-        # Save the entire updated tournament document back to the database
-        tournaments_table.update(tournament, doc_ids=[tournament_id])
-        return jsonify({'status': 'success', 'message': 'Score updated!'})
-
-    return jsonify({'status': 'error', 'message': 'Invalid request'}), 400
-# =======================================================
-
-# --- 4. & 5. TELEGRAM BOT & THREADING (No changes here) ---
-# ... (rest of the bot code is identical) ...
+# --- 4. TELEGRAM BOT LOGIC ---
 def get_webapp_url():
-    return os.environ.get("WEBAPP_URL", "https://your-app-name.onrender.com")
+    return os.environ.get("WEBAPP_URL")
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     keyboard = [
@@ -129,6 +81,7 @@ def run_bot():
     application.run_polling()
     print("Bot has stopped.")
 
+# --- 5. START THE BOT IN A BACKGROUND THREAD ---
 print("Starting bot thread...")
 bot_thread = threading.Thread(target=run_bot)
 bot_thread.daemon = True
