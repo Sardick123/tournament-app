@@ -12,6 +12,13 @@
             color: var(--tg-theme-text-color, #222);
             background-color: var(--tg-theme-bg-color, #fff);
         }
+        h1, h2 {
+            color: #2a71d0; /* === THE BLUE COLOR === */
+        }
+        a.card-link { 
+            text-decoration: none; 
+            color: inherit;
+        }
         .tournament-card {
             background-color: var(--tg-theme-secondary-bg-color, #f3f4f6);
             padding: 15px;
@@ -27,7 +34,7 @@
             margin-bottom: 20px;
         }
         input[type="text"] { width: 100%; padding: 10px; border-radius: 5px; border: 1px solid #ccc; box-sizing: border-box; }
-        button { width: 100%; padding: 12px; border-radius: 5px; border: none; font-weight: bold; color: var(--tg-theme-button-text-color, #fff); background-color: var(--tg-theme-button-color, #5288c1); cursor: pointer; margin-top: 10px; }
+        button { width: 100%; padding: 12px; border-radius: 5px; border: none; font-weight: bold; color: var(--tg-theme-button-text-color, #fff); background-color: var(--tg-theme-button-color, #2a71d0); cursor: pointer; margin-top: 10px; }
     </style>
 </head>
 <body>
@@ -58,24 +65,29 @@
             const form = document.getElementById('create-tournament-form');
             const nameInput = document.getElementById('tournament-name');
 
-            // Function to fetch and display tournaments
             function loadTournaments() {
                 tournamentsListDiv.innerHTML = '<div id="loading">Loading tournaments...</div>';
                 fetch('/api/tournaments')
                     .then(response => response.json())
                     .then(tournaments => {
-                        tournamentsListDiv.innerHTML = ''; // Clear loading message
+                        tournamentsListDiv.innerHTML = '';
                         if (tournaments.length === 0) {
                             tournamentsListDiv.innerHTML = '<div id="no-tournaments">No tournaments yet. Create one!</div>';
                         } else {
                             tournaments.forEach(tournament => {
+                                const link = document.createElement('a');
+                                link.href = `/tournament/${tournament.id}`; // Link to the detail page
+                                link.className = 'card-link';
+
                                 const card = document.createElement('div');
                                 card.className = 'tournament-card';
                                 card.innerHTML = `
                                     <h3>${tournament.name}</h3>
                                     <p><strong>Status:</strong> ${tournament.status}</p>
                                 `;
-                                tournamentsListDiv.appendChild(card);
+
+                                link.appendChild(card);
+                                tournamentsListDiv.appendChild(link);
                             });
                         }
                     })
@@ -85,30 +97,24 @@
                     });
             }
 
-            // === NEW: Event listener for the form submission ===
             form.addEventListener('submit', function(event) {
-                event.preventDefault(); // Prevent page from reloading
+                event.preventDefault();
                 const tournamentName = nameInput.value;
                 if (!tournamentName) return;
 
-                // Send the data to our backend
                 fetch('/api/tournaments/create', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded',
-                    },
-                    body: new URLSearchParams({
-                        'name': tournamentName
-                    })
+                    headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+                    body: new URLSearchParams({'name': tournamentName})
                 })
                 .then(response => response.json())
                 .then(data => {
                     if (data.status === 'success') {
-                        nameInput.value = ''; // Clear the input box
-                        tg.HapticFeedback.notificationOccurred('success'); // Vibrate on success
-                        loadTournaments(); // Refresh the list
+                        nameInput.value = '';
+                        tg.HapticFeedback.notificationOccurred('success');
+                        loadTournaments();
                     } else {
-                        tg.HapticFeedback.notificationOccurred('error'); // Vibrate on error
+                        tg.HapticFeedback.notificationOccurred('error');
                         alert(data.message);
                     }
                 })
@@ -118,7 +124,6 @@
                 });
             });
 
-            // Load tournaments when the page first opens
             loadTournaments();
         });
     </script>
