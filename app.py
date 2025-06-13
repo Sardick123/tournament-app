@@ -1,5 +1,6 @@
 import os
 import threading
+import itertools # We'll use this to generate pairs of teams
 from flask import Flask, render_template, jsonify, request, abort
 from tinydb import TinyDB, Query
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
@@ -39,11 +40,19 @@ def get_teams(tournament_id):
         return jsonify(tournament.get('teams', []))
     return jsonify({'status': 'error', 'message': 'Tournament not found'}), 404
 
+@app.route('/api/tournaments/<int:tournament_id>/fixtures')
+def get_fixtures(tournament_id):
+    tournament = tournaments_table.get(doc_id=tournament_id)
+    if tournament:
+        return jsonify(tournament.get('fixtures', []))
+    return jsonify({'status': 'error', 'message': 'Tournament not found'}), 404
+
 @app.route('/api/tournaments/create', methods=['POST'])
 def create_tournament():
     tournament_name = request.form['name']
     if tournament_name:
-        new_tournament = {'name': tournament_name, 'status': 'New', 'teams': []}
+        # When creating, add empty lists for teams and fixtures
+        new_tournament = {'name': tournament_name, 'status': 'New', 'teams': [], 'fixtures': []}
         tournaments_table.insert(new_tournament)
         return jsonify({'status': 'success', 'message': 'Tournament created!'})
     return jsonify({'status': 'error', 'message': 'Name is required.'}), 400
@@ -59,7 +68,36 @@ def add_team(tournament_id):
         return jsonify({'status': 'success', 'message': 'Team added!'})
     return jsonify({'status': 'error', 'message': 'Invalid request'}), 400
 
-# --- 4. TELEGRAM BOT LOGIC ---
+# === NEW: API ENDPOINT TO GENERATE FIXTURES ===
+@app.route('/api/tournaments/<int:tournament_id>/generate_fixtures', methods=['POST'])
+def generate_fixtures(tournament_id):
+    tournament = tournaments_table.get(doc_id=tournament_id)
+    if not tournament or len(tournament.get('teams', [])) < 2:
+        return jsonify({'status': 'error', 'message': 'Add at least 2 teams to generate fixtures.'}), 400
+
+    # Prevent generating fixtures more than once
+    if len(tournament.get('fixtures', [])) > 0:
+        return jsonify({'status': 'error', 'message': 'Fixtures have already been generated.'}), 400
+
+    team_names = [team['name'] for team in tournament.get('teams', [])]
+
+    # Simple round-robin logic: generate all unique pairs of teams
+    all_matchups = list(itertools.combinations(team_names, 2))
+
+    fixtures = []
+    for match in all_matchups:
+        fixtures.append({
+            'home_team': match[0],
+            'away_team': match[1],
+            'home_score': None,
+            'away_score': None
+        })
+
+    tournaments_table.update({'fixtures': fixtures, 'status': 'In Progress'}, doc_ids=[tournament_id])
+    return jsonify({'status': 'success', 'message': f'{len(fixtures)} fixtures generated successfully!'})
+# ===============================================
+
+# --- 4. & 5. TELEGRAM BOT & THREADING (No changes here) ---
 def get_webapp_url():
     return os.environ.get("WEBAPP_URL")
 
@@ -81,7 +119,6 @@ def run_bot():
     application.run_polling()
     print("Bot has stopped.")
 
-# --- 5. START THE BOT IN A BACKGROUND THREAD ---
 print("Starting bot thread...")
 bot_thread = threading.Thread(target=run_bot)
 bot_thread.daemon = True
