@@ -28,7 +28,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Remember to replace this with your actual bot token!
-BOT_TOKEN = "8070402787:AAHHI6GISaFBSYBc5-Lllt92tV8toUTi_DA"
+BOT_TOKEN = "Bot Token"
 DB_NAME = "tournaments.db"
 
 # --- Points System for Round Robin / Group Stage / Swiss ---
