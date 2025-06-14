@@ -2,130 +2,32 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Tournament Manager</title>
-    <style>
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-            margin: 0;
-            padding: 15px;
-            color: var(--tg-theme-text-color, #222);
-            background-color: var(--tg-theme-bg-color, #fff);
-        }
-        h1, h2 {
-            color: #2a71d0; /* === THE BLUE COLOR === */
-        }
-        a.card-link { 
-            text-decoration: none; 
-            color: inherit;
-        }
-        .tournament-card {
-            background-color: var(--tg-theme-secondary-bg-color, #f3f4f6);
-            padding: 15px;
-            border-radius: 8px;
-            margin-bottom: 10px;
-        }
-        .tournament-card h3 { margin-top: 0; }
-        #loading, #no-tournaments { text-align: center; padding: 20px; color: #666; }
-        .form-section {
-            padding: 15px;
-            background-color: var(--tg-theme-secondary-bg-color, #f3f4f6);
-            border-radius: 8px;
-            margin-bottom: 20px;
-        }
-        input[type="text"] { width: 100%; padding: 10px; border-radius: 5px; border: 1px solid #ccc; box-sizing: border-box; }
-        button { width: 100%; padding: 12px; border-radius: 5px; border: none; font-weight: bold; color: var(--tg-theme-button-text-color, #fff); background-color: var(--tg-theme-button-color, #2a71d0); cursor: pointer; margin-top: 10px; }
-    </style>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Tournament Bot</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
 </head>
 <body>
-
-    <h1>My Tournaments</h1>
-    <hr>
-
-    <div class="form-section">
-        <form id="create-tournament-form">
-            <input type="text" id="tournament-name" placeholder="Enter new tournament name" required>
-            <button type="submit">Create Tournament</button>
-        </form>
+    <div id="view-list" class="view active">
+        <header>
+            <h1>Tournaments</h1>
+        </header>
+        <main id="tournament-list">
+            <div class="loader"></div>
+        </main>
     </div>
 
-    <h2>Tournament List</h2>
-    <div id="tournaments-list">
-        <div id="loading">Loading tournaments...</div>
+    <div id="view-details" class="view">
+        <header>
+            <h1 id="details-title">Tournament Details</h1>
+        </header>
+        <main>
+            <div id="details-content"></div>
+            <div id="details-players-list"></div>
+            <button id="join-button" class="action-button">Join Tournament</button>
+        </main>
     </div>
-
-    <script src="https://telegram.org/js/telegram-web-app.js"></script>
-
-    <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            const tg = window.Telegram.WebApp;
-            tg.ready();
-
-            const tournamentsListDiv = document.getElementById('tournaments-list');
-            const form = document.getElementById('create-tournament-form');
-            const nameInput = document.getElementById('tournament-name');
-
-            function loadTournaments() {
-                tournamentsListDiv.innerHTML = '<div id="loading">Loading tournaments...</div>';
-                fetch('/api/tournaments')
-                    .then(response => response.json())
-                    .then(tournaments => {
-                        tournamentsListDiv.innerHTML = '';
-                        if (tournaments.length === 0) {
-                            tournamentsListDiv.innerHTML = '<div id="no-tournaments">No tournaments yet. Create one!</div>';
-                        } else {
-                            tournaments.forEach(tournament => {
-                                const link = document.createElement('a');
-                                link.href = `/tournament/${tournament.id}`; // Link to the detail page
-                                link.className = 'card-link';
-
-                                const card = document.createElement('div');
-                                card.className = 'tournament-card';
-                                card.innerHTML = `
-                                    <h3>${tournament.name}</h3>
-                                    <p><strong>Status:</strong> ${tournament.status}</p>
-                                `;
-
-                                link.appendChild(card);
-                                tournamentsListDiv.appendChild(link);
-                            });
-                        }
-                    })
-                    .catch(error => {
-                        console.error('Error fetching tournaments:', error);
-                        tournamentsListDiv.innerHTML = '<div id="no-tournaments">Failed to load tournaments.</div>';
-                    });
-            }
-
-            form.addEventListener('submit', function(event) {
-                event.preventDefault();
-                const tournamentName = nameInput.value;
-                if (!tournamentName) return;
-
-                fetch('/api/tournaments/create', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-                    body: new URLSearchParams({'name': tournamentName})
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.status === 'success') {
-                        nameInput.value = '';
-                        tg.HapticFeedback.notificationOccurred('success');
-                        loadTournaments();
-                    } else {
-                        tg.HapticFeedback.notificationOccurred('error');
-                        alert(data.message);
-                    }
-                })
-                .catch(error => {
-                    console.error('Error creating tournament:', error);
-                    tg.HapticFeedback.notificationOccurred('error');
-                });
-            });
-
-            loadTournaments();
-        });
-    </script>
+    
+    <script src="app.js"></script>
 </body>
 </html>
