@@ -1,4 +1,5 @@
-flask
-python-telegram-bot
+Flask
 gunicorn
-tinydb 
+flusk-cors
+SQLAlchemy
+psycopg2-binary
