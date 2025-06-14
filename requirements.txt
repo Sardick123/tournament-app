@@ -1,5 +1,5 @@
 Flask
 gunicorn
-flusk-cors
+flask-cors
 SQLAlchemy
 psycopg2-binary
