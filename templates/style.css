@@ -1,0 +1,98 @@
+/* frontend/style.css */
+:root {
+    --tg-bg: var(--tg-theme-bg-color, #ffffff);
+    --tg-text: var(--tg-theme-text-color, #000000);
+    --tg-hint: var(--tg-theme-hint-color, #999999);
+    --tg-button: var(--tg-theme-button-color, #007aff);
+    --tg-button-text: var(--tg-theme-button-text-color, #ffffff);
+    --tg-secondary-bg: var(--tg-theme-secondary-bg-color, #f2f2f7);
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    margin: 0;
+    background-color: var(--tg-bg);
+    color: var(--tg-text);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+.view {
+    display: none;
+    padding: 15px;
+}
+.view.active {
+    display: block;
+}
+
+header h1 {
+    font-size: 24px;
+    margin: 10px 0 20px;
+    font-weight: 700;
+}
+
+.tournament-card {
+    background-color: var(--tg-secondary-bg);
+    padding: 15px;
+    border-radius: 12px;
+    margin-bottom: 12px;
+    cursor: pointer;
+    transition: transform 0.1s ease-in-out;
+}
+.tournament-card:active {
+    transform: scale(0.98);
+}
+.tournament-card h2 {
+    margin: 0 0 5px 0;
+    font-size: 18px;
+    color: var(--tg-text);
+}
+.tournament-card p {
+    margin: 0;
+    font-size: 14px;
+    color: var(--tg-hint);
+}
+.tournament-card .status {
+    font-weight: 500;
+}
+.status.pending { color: #007aff; }
+.status.ongoing { color: #34c759; }
+.status.completed { color: #8e8e93; }
+
+.player-item {
+    background-color: var(--tg-secondary-bg);
+    padding: 10px 15px;
+    border-radius: 8px;
+    margin-bottom: 8px;
+    font-size: 16px;
+}
+
+.action-button {
+    width: 100%;
+    padding: 15px;
+    font-size: 17px;
+    font-weight: 600;
+    border: none;
+    border-radius: 12px;
+    background-color: var(--tg-button);
+    color: var(--tg-button-text);
+    cursor: pointer;
+    margin-top: 20px;
+}
+.action-button:disabled {
+    background-color: var(--tg-hint);
+}
+
+.loader {
+    border: 4px solid var(--tg-secondary-bg);
+    border-top: 4px solid var(--tg-button);
+    border-radius: 50%;
+    width: 30px;
+    height: 30px;
+    animation: spin 1s linear infinite;
+    margin: 40px auto;
+}
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
