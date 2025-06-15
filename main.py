@@ -6450,13 +6450,6 @@ def main() -> None:
 
     application.add_error_handler(error_handler)
 
-    logger.info("Bot is starting polling...")
-    print("Bot is starting polling...")
-    application.run_polling()
-    logger.info("Bot has stopped.")
-    print("Bot has stopped.")
-
-
 # This is the new web server code to keep the bot alive
 app = Flask('')
 
