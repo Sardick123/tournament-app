@@ -553,7 +553,8 @@ def update_tournament_status(
             )
         conn.commit()
         logger.info(
-            f"T_ID {tournament_id} status updated to {new_status}. Winner: {winner_username if winner_username else 'N/A'}"
+            f"T_ID {tournament_id} status updated to {new_status}. Winner: {
+                winner_username if winner_username else 'N/A'}"
         )
         return cursor.rowcount > 0
     except sqlite3.Error as e:
